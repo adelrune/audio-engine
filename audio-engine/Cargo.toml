@@ -1,0 +1,8 @@
+[package]
+name = "audio-engine"
+version = "0.1.0"
+authors = ["Guillaume Riou <riou.guillaume@hotmail.com>"]
+edition = "2018"
+
+[dependencies]
+libm = "0.1.4"
