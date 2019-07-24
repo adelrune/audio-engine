@@ -23,11 +23,11 @@ fn run() -> Result<(), pa::Error> {
         "PortAudio Test: output sine wave. SR = {}, BufSize = {}",
         SAMPLE_RATE, FRAMES_PER_BUFFER
     );
-    let modmod = audio_objects::NaiveTableOsc::new(0.3, 300, 660, &SINE_2048);
-    let modulator = audio_objects::NaiveTableOsc::new(modmod, 220.0, 440.0, &SINE_2048);
-    let sine_osc = audio_objects::NaiveTableOsc::new(modulator, 1, 0.0, &SINE_2048);
-    let disto_mod = audio_objects::NaiveTableOsc::new(2.3, 3, 3.2, &TRIANGLE_2);
-    let mut last = audio_objects::TanHWaveshaper::new(sine_osc, disto_mod);
+    let mut modmod = audio_objects::NaiveTableOsc::new(&0.3, &300, &660, &SINE_2048);
+    let mut modulator = audio_objects::NaiveTableOsc::new(&modmod, &220.0, &440.0, &SINE_2048);
+    let mut sine_osc = audio_objects::NaiveTableOsc::new(&modulator, &1, &0.0, &SINE_2048);
+    let mut disto_mod = audio_objects::NaiveTableOsc::new(&2.3, &3, &3.2, &TRIANGLE_2);
+    let mut last = audio_objects::TanHWaveshaper::new(&sine_osc, &disto_mod);
     // let mut last = audio_objects::NaiveTableOsc::new(440,1, 0, &TRIANGLE_2);
     let pa = pa::PortAudio::new()?;
     let settings =
@@ -36,7 +36,14 @@ fn run() -> Result<(), pa::Error> {
     let callback = move |pa::OutputStreamCallbackArgs { buffer, frames, .. }| {
         let mut idx = 0;
         for _ in 0..frames {
-            let samp = last.next();
+            let samp = last.get_sample();
+
+            modmod.next();
+            modulator.next();
+            sine_osc.next();
+            disto_mod.next();
+            last.next();
+
             buffer[idx] = samp;
             buffer[idx + 1] = samp;
             idx += 2;
