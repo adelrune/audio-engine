@@ -1,8 +1,11 @@
 extern crate portaudio;
 
 use portaudio as pa;
-use audio_engine::audio_objects::Audio;
-use audio_engine::audio_objects;
+use audio_engine::audio_objects::{
+    NaiveTableOsc,
+    ConstantOsc,
+    TanHWaveshaper
+};
 use audio_engine::tables::{SINE_2048, TRIANGLE_2};
 const CHANNELS: i32 = 2;
 const NUM_SECONDS: i32 = 5;
@@ -23,21 +26,35 @@ fn run() -> Result<(), pa::Error> {
         "PortAudio Test: output sine wave. SR = {}, BufSize = {}",
         SAMPLE_RATE, FRAMES_PER_BUFFER
     );
-    let mut modmod = audio_objects::NaiveTableOsc::new(&0.3, &300, &660, &SINE_2048);
-    let mut modulator = audio_objects::NaiveTableOsc::new(&modmod, &220.0, &440.0, &SINE_2048);
-    let mut sine_osc = audio_objects::NaiveTableOsc::new(&modulator, &1, &0.0, &SINE_2048);
-    let mut disto_mod = audio_objects::NaiveTableOsc::new(&2.3, &3, &3.2, &TRIANGLE_2);
-    let mut last = audio_objects::TanHWaveshaper::new(&sine_osc, &disto_mod);
+    let stable_0_3 = ConstantOsc::from(0.3);
+    let stable_300 = ConstantOsc::from(300);
+    let stable_660 = ConstantOsc::from(660);
+    let stable_220 = ConstantOsc::from(220);
+    let stable_440 = ConstantOsc::from(440);
+    let stable_1 = ConstantOsc::from(1);
+    let stable_0 = ConstantOsc::from(0);
+    let stable_2_3 = ConstantOsc::from(2.3);
+    let stable_3 = ConstantOsc::from(3);
+    let stable_3_2 = ConstantOsc::from(3.2);
+
+
+    let mut modmod = NaiveTableOsc::new(stable_0_3.get_value_chan(), stable_300.get_value_chan(), stable_660.get_value_chan(), &SINE_2048);
+    let mut modulator = NaiveTableOsc::new(modmod.get_value_chan(), stable_220.get_value_chan(), stable_440.get_value_chan(), &SINE_2048);
+    let mut sine_osc = NaiveTableOsc::new(modulator.get_value_chan(), stable_1.get_value_chan(), stable_0.get_value_chan(), &SINE_2048);
+    let mut disto_mod = NaiveTableOsc::new(stable_2_3.get_value_chan(), stable_3.get_value_chan(), stable_3_2.get_value_chan(), &TRIANGLE_2);
+    let mut last = TanHWaveshaper::new(sine_osc.get_value_chan(), disto_mod.get_value_chan());
     // let mut last = audio_objects::NaiveTableOsc::new(440,1, 0, &TRIANGLE_2);
     let pa = pa::PortAudio::new()?;
     let settings =
         pa.default_output_stream_settings(CHANNELS, SAMPLE_RATE, FRAMES_PER_BUFFER)?;
 
+
     let callback = move |pa::OutputStreamCallbackArgs { buffer, frames, .. }| {
+        let last_chan = last.get_value_chan();
         let mut idx = 0;
         for _ in 0..frames {
-            let samp = last.get_sample();
-
+            let samp = *last_chan.get();
+    
             modmod.next();
             modulator.next();
             sine_osc.next();
@@ -52,6 +69,7 @@ fn run() -> Result<(), pa::Error> {
     };
 
     let mut stream = pa.open_non_blocking_stream(settings, callback)?;
+   // let mut stream = pa.open_blocking_stream(settings);
 
     stream.start()?;
 
