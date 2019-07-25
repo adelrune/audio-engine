@@ -32,15 +32,12 @@ impl NaiveTableOsc {
 impl AudioComponent<(f32, f32, f32), f32> for NaiveTableOsc {
     fn initial_state(&self) -> f32 { 0.0 }
 
-    fn step(&mut self, input: (f32, f32, f32)) {
-        let phase_increment = input.0 * self.table_increment;
+    fn step(&mut self, (freq, _amp, _add): (f32, f32, f32)) {
+        let phase_increment = freq * self.table_increment;
         self.cur_index += phase_increment;
     }
 
-    fn sample(&self, input: (f32, f32, f32)) -> f32 {
-        let amp = input.1;
-        let add = input.2;
-
+    fn sample(&self, (_freq, amp, add): (f32, f32, f32)) -> f32 {
         let fract_part = self.cur_index - self.cur_index.floor();
         let int_part = self.cur_index as usize;
         let int_part = int_part % self.table.len();
@@ -66,10 +63,9 @@ impl TanHWaveshaper {
 impl AudioComponent<(f32, f32), f32> for TanHWaveshaper {
     fn initial_state(&self) -> f32 { 0.0 }
 
-    fn step(&mut self, input: (f32, f32)) {}
+    fn step(&mut self, (_input, _drive): (f32, f32)) {}
 
-    fn sample(&self, input: (f32, f32)) -> f32 {
-        let drive = input.0;
-        (input.1 * drive).tanh()/drive.tanh()
+    fn sample(&self, (input, drive): (f32, f32)) -> f32 {
+        (input * drive).tanh() / drive.tanh()
     }
 }
