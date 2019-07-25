@@ -33,13 +33,7 @@ fn run() -> Result<(), pa::Error> {
     let mut disto_mod = NaiveTableOsc::new(&TRIANGLE_2);
     let mut output = TanHWaveshaper::new();
 
-    let mut state = [
-        modmod.initial_state(),
-        modulator.initial_state(),
-        sine_osc.initial_state(),
-        disto_mod.initial_state(),
-        output.initial_state()
-    ];
+    let mut state = [0.0, 0.0, 0.0, 0.0, 0.0];
 
     let pa = pa::PortAudio::new()?;
     let settings =
@@ -51,13 +45,11 @@ fn run() -> Result<(), pa::Error> {
         for _ in 0..frames {
             let samp = state[4];
 
-            let old_state = state.clone();
-
             state[0] = modmod.step_and_sample((0.3, 300.0, 660.0));
-            state[1] = modulator.step_and_sample((old_state[0], 220.0, 440.0));
-            state[2] = sine_osc.step_and_sample((old_state[1], 1.0, 0.0));
+            state[1] = modulator.step_and_sample((state[0], 220.0, 440.0));
+            state[2] = sine_osc.step_and_sample((state[1], 1.0, 0.0));
             state[3] = disto_mod.step_and_sample((2.3, 3.0, 3.2));
-            state[4] = output.step_and_sample((old_state[2], old_state[3]));
+            state[4] = output.step_and_sample((state[2], state[3]));
 
             buffer[idx] = samp;
             buffer[idx + 1] = samp;

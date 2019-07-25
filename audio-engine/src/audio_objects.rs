@@ -7,7 +7,6 @@ fn lin_interpolate(val_1:f32, val_2:f32, location:f32) -> f32{
 }
 
 pub trait AudioComponent<T: Copy, V> {
-    fn initial_state(&self) -> V;
     fn step(&mut self, input: T);
     fn sample(&self, input: T) -> V;
     fn step_and_sample(&mut self, input: T) -> V { self.step(input); self.sample(input) }
@@ -30,8 +29,6 @@ impl NaiveTableOsc {
 }
 
 impl AudioComponent<(f32, f32, f32), f32> for NaiveTableOsc {
-    fn initial_state(&self) -> f32 { 0.0 }
-
     fn step(&mut self, (freq, _amp, _add): (f32, f32, f32)) {
         let phase_increment = freq * self.table_increment;
         self.cur_index += phase_increment;
@@ -61,8 +58,6 @@ impl TanHWaveshaper {
 }
 
 impl AudioComponent<(f32, f32), f32> for TanHWaveshaper {
-    fn initial_state(&self) -> f32 { 0.0 }
-
     fn step(&mut self, (_input, _drive): (f32, f32)) {}
 
     fn sample(&self, (input, drive): (f32, f32)) -> f32 {
