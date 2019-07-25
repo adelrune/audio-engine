@@ -2,22 +2,6 @@ use libm::F32Ext;
 
 static SAMPLE_RATE : f32 = 44100.0;
 
-pub struct ValueChan<T> {
-    value: *const T
-}
-
-impl<T> ValueChan<T> {
-    pub fn from(from: *const T) -> ValueChan<T> {
-        ValueChan {
-            value: from
-        }
-    }
-
-    pub fn get(&self) -> &T {
-        unsafe {self.value.as_ref().unwrap()}
-    }
-}
-
 
 //not sure interpolate should be there, will probably move it later
 fn lin_interpolate(val_1:f32, val_2:f32, location:f32) -> f32{
@@ -25,67 +9,44 @@ fn lin_interpolate(val_1:f32, val_2:f32, location:f32) -> f32{
 }
 
 // Adds the Audio traits to be able to pass numerics to audio objects as parameters.
-pub struct ConstantOsc {
-    value: f32
-}
-
-impl ConstantOsc {
-    pub fn get_value_chan(&self) -> ValueChan<f32> {
-        ValueChan::from(&self.value)
-    }
-}
-
-impl From<i32> for ConstantOsc {
-    fn from(value: i32) -> ConstantOsc {
-        ConstantOsc {
-            value: value as f32
-        }
-    }
-}
-
-impl From<f32> for ConstantOsc {
-    fn from(value: f32) -> ConstantOsc {
-        ConstantOsc {
-            value
-        }
-    }
-}
 
 pub struct NaiveTableOsc {
     cur_index: f32,
-    pub freq: ValueChan<f32>,
-    pub amp: ValueChan<f32>,
-    pub add: ValueChan<f32>,
+    pub freq: *const f32,
+    pub amp: *const f32,
+    pub add: *const f32,
     pub table: &'static [f32],
     table_increment: f32,
     current_value: f32
 }
 
+pub fn get_val(val : *const f32) -> f32 {
+    *unsafe {val.as_ref().unwrap()}
+}
+
 impl NaiveTableOsc {
-    pub fn new(freq: ValueChan<f32>, amp: ValueChan<f32>, add: ValueChan<f32>, table: &'static [f32]) -> Self {
+    pub fn new(freq: &f32, amp: &f32, add: &f32, table: &'static [f32]) -> Self {
         NaiveTableOsc {
             cur_index: 0.0,
-            freq, 
-            amp, 
-            add, 
-            table, 
+            freq: freq as *const f32,
+            amp: amp as *const f32,
+            add: add as *const f32,
+            table:table,
             table_increment: table.len() as f32 / SAMPLE_RATE,
             current_value: 0.0
         }
     }
 
-    pub fn get_value_chan(&self) -> ValueChan<f32> {
-        ValueChan::from(&self.current_value)
+    pub fn get_value_chan(&self) -> &f32 {
+        &self.current_value
     }
 
     pub fn next(&mut self) {
-        let freq = self.freq.get();
-        let phase_increment = freq * self.table_increment;
-        self.cur_index += phase_increment;
+        let freq = get_val(self.freq);
 
             //gets the next samples for freq and mul.
-        let amp = self.amp.get();
-        let add = self.add.get();
+        let amp = get_val(self.amp);
+        let add = get_val(self.add);
 
         let fract_part = self.cur_index - self.cur_index.floor();
         let int_part = self.cur_index as usize;
@@ -96,32 +57,36 @@ impl NaiveTableOsc {
             self.table[next],
             fract_part
         );
+
+        let phase_increment = freq * self.table_increment;
+        self.cur_index += phase_increment;
+
         self.current_value = val * amp + add;
     }
 }
 
 
 pub struct TanHWaveshaper {
-    input : ValueChan<f32>,
-    pub drive: ValueChan<f32>,
+    input : *const f32,
+    pub drive: *const f32,
     current_value: f32
 }
 
 impl TanHWaveshaper {
-    pub fn new(input: ValueChan<f32>, drive: ValueChan<f32>) -> Self {
+    pub fn new(input: &f32, drive: &f32) -> Self {
         TanHWaveshaper {
-            input, 
-            drive,
+            input: input as *const f32,
+            drive: drive as *const f32,
             current_value: 0.0
         }
     }
 
-    pub fn get_value_chan(&self) -> ValueChan<f32> {
-        ValueChan::from(&self.current_value)
+    pub fn get_value_chan(&self) -> &f32 {
+        &self.current_value
     }
 
     pub fn next(&mut self) {
-        let drive = self.drive.get();
-        self.current_value = (self.input.get() * drive).tanh()/drive.tanh();
+        let drive = get_val(self.drive);
+        self.current_value = (get_val(self.input) * drive).tanh()/drive.tanh();
     }
 }
