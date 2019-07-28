@@ -10,8 +10,8 @@ signal_chain!{
 
     )
     {
-        modulator(1.2, 220);
-        generator(modulator, whatevershit(3,4,5) + 3);
+        modulator(1.2, 220.0) + lel + 660;
+        generator(modulator, whatevershit(3, 4, 5) + 3);
         modifier(generator);
     }
 }

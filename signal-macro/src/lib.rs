@@ -8,7 +8,7 @@ use syn::parse::{Parser ,Parse, ParseStream, Result, };
 use syn::spanned::Spanned;
 use syn::token;
 use syn::punctuated::Punctuated;
-use syn::{ExprCall, ExprParen, parenthesized, braced, parse_macro_input, Expr, Ident, Token, Type, Visibility, BinOp, LitFloat};
+use syn::{ExprCall, ExprParen, parenthesized, braced, parse_macro_input, Expr, Ident, Token, Type, Visibility, BinOp, LitFloat, LitInt };
 use std::vec;
 
 struct Equation {
@@ -27,30 +27,36 @@ impl Parse for Equation {
 
 struct OperandNode {
     // enums are too stupid
-    content: (Option<LitFloat>, Option<Ident>, Option<ExprCall>, Option<Equation>),
+    content: (Option<LitInt>, Option<LitFloat>, Option<Ident>, Option<(Ident,Punctuated<Equation, Token![,]>)>, Option<Equation>),
     next: Option<Box<OperationNode>>
 }
 
 impl Parse for OperandNode {
     fn parse(input: ParseStream) -> Result<Self> {
-        println!("aaaa");
-        let content:(Option<LitFloat>, Option<Ident>, Option<ExprCall>, Option<Equation>);
+        let mut content:(Option<LitInt>, Option<LitFloat>, Option<Ident>, Option<(Ident, Punctuated<Equation, Token![,]>)>, Option<Equation>);
         // this is really ugly code.
-        if input.peek(LitFloat) {
-            content = (Some(input.parse()?), None, None, None);
+        if input.peek(LitInt) {
+            content = (Some(input.parse()?), None, None, None, None);
+        } else if input.peek(LitFloat) {
+            content = (None, Some(input.parse()?), None, None, None);
         // case for reference
         } else if input.peek(Ident) && !input.peek2(token::Paren){
-            content = (None, Some(input.parse()?), None, None);
+            content = (None, None, Some(input.parse()?), None, None);
         // case for ExprCall
         } else if input.peek(Ident) && input.peek2(token::Paren){
-            content = (None, None, Some(input.parse()?), None);
+            let paramParser = Equation::parse;
+            let part_1: Ident = input.parse()?;
+            let c;
+            parenthesized!(c in input);
+            let part_2: Punctuated<Equation, Token![,]> = c.parse_terminated(paramParser)?;
+            content = (None, None, None, Some((part_1, part_2)), None);
         } else if input.peek(token::Paren ){
-            content = (None, None, None, Some(input.parse()?));
+            content = (None, None, None, None, Some(input.parse()?));
         } else {
-            content = (None, None, None, None);
+            content = (None, None, None, None, None);
         }
         let next: Option<Box<OperationNode>>;
-        if !input.peek(Token![;]) {
+        if ! (input.peek(Token![;]) || input.peek(Token![,]) || input.is_empty()) {
             next = Some(Box::new(input.parse()?));
         } else {
             next = None;
@@ -71,7 +77,7 @@ impl Parse for OperationNode {
     fn parse(input: ParseStream) -> Result<Self> {
         let content: BinOp = input.parse()?;
         let next: Option<Box<OperandNode>>;
-        if !input.peek(Token![;]) {
+        if !(input.peek(Token![;]) || input.peek(Token![,]) || input.is_empty()) {
             next = Some(Box::new(input.parse()?));
         } else {
             next = None;
@@ -139,7 +145,7 @@ impl Parse for SignalChain {
 }
 
 
-/*
+/* Input :
 signal_chain!(
     my_signal_chain (
 
@@ -154,7 +160,14 @@ signal_chain!(
         modifier(generator)
     }
 )
+
+Output ;
+
+struct
+
 */
+
+
 
 #[proc_macro]
 pub fn signal_chain(input: TokenStream) -> TokenStream {
