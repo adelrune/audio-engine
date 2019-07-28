@@ -6,12 +6,6 @@ fn lin_interpolate(val_1:f32, val_2:f32, location:f32) -> f32{
     val_1 * (1.0 - location) + val_2 * location
 }
 
-pub trait AudioComponent<T: Copy, V> {
-    fn step(&mut self, input: T);
-    fn sample(&self, input: T) -> V;
-    fn step_and_sample(&mut self, input: T) -> V { self.step(input); self.sample(input) }
-}
-
 pub struct NaiveTableOsc {
     cur_index: f32,
     table: &'static [f32],
@@ -26,15 +20,7 @@ impl NaiveTableOsc {
             table_increment: table.len() as f32 / SAMPLE_RATE
         }
     }
-}
-
-impl AudioComponent<(f32, f32, f32), f32> for NaiveTableOsc {
-    fn step(&mut self, (freq, _amp, _add): (f32, f32, f32)) {
-        let phase_increment = freq * self.table_increment;
-        self.cur_index += phase_increment;
-    }
-
-    fn sample(&self, (_freq, amp, add): (f32, f32, f32)) -> f32 {
+    pub fn next(&mut self, freq:f32, amp:f32, add:f32) -> f32 {
         let fract_part = self.cur_index - self.cur_index.floor();
         let int_part = self.cur_index as usize;
         let int_part = int_part % self.table.len();
@@ -44,23 +30,22 @@ impl AudioComponent<(f32, f32, f32), f32> for NaiveTableOsc {
             self.table[next],
             fract_part
         );
+
+        let phase_increment = freq * self.table_increment;
+        self.cur_index += phase_increment;
+
         val * amp + add
     }
 }
 
-pub struct TanHWaveshaper {
-}
+
+pub struct TanHWaveshaper {}
 
 impl TanHWaveshaper {
     pub fn new() -> Self {
         TanHWaveshaper {}
     }
-}
-
-impl AudioComponent<(f32, f32), f32> for TanHWaveshaper {
-    fn step(&mut self, (_input, _drive): (f32, f32)) {}
-
-    fn sample(&self, (input, drive): (f32, f32)) -> f32 {
+    pub fn next(&mut self, input:f32, drive:f32) -> f32 {
         (input * drive).tanh() / drive.tanh()
     }
 }

@@ -2,7 +2,6 @@ extern crate portaudio;
 
 use portaudio as pa;
 use audio_engine::audio_objects::{
-    AudioComponent,
     NaiveTableOsc,
     TanHWaveshaper
 };
@@ -21,19 +20,44 @@ fn main() {
     }
 }
 
+struct SignalChain {
+    modmod: NaiveTableOsc,
+    modulator: NaiveTableOsc,
+    sine_osc: NaiveTableOsc,
+    disto_mod: NaiveTableOsc,
+    output: TanHWaveshaper,
+    output_states: [f32;5]
+}
+
+impl SignalChain {
+    pub fn new() -> Self {
+        SignalChain {
+            modmod:NaiveTableOsc::new(&SINE_2048),
+            modulator:NaiveTableOsc::new(&SINE_2048),
+            sine_osc:NaiveTableOsc::new(&SINE_2048),
+            disto_mod:NaiveTableOsc::new(&TRIANGLE_2),
+            output:TanHWaveshaper::new(),
+            output_states: [0.0;5],
+        }
+    }
+
+    fn next(&mut self) -> f32 {
+        self.output_states[0] = self.modmod.next(0.3, 300.0, 660.0);
+        self.output_states[1] = self.modulator.next(self.output_states[0], 220.0, 440.0);
+        self.output_states[2] = self.sine_osc.next(self.output_states[1], 1.0, 0.0);
+        self.output_states[3] = self.disto_mod.next(2.3, 3.0, 3.2);
+        self.output_states[4] = self.output.next(self.output_states[2] + 0.2 * self.output_states[4], self.output_states[3]);
+        self.output_states[4]
+    }
+}
+
+
 fn run() -> Result<(), pa::Error> {
     println!(
         "PortAudio Test: output sine wave. SR = {}, BufSize = {}",
         SAMPLE_RATE, FRAMES_PER_BUFFER
     );
-
-    let mut modmod = NaiveTableOsc::new(&SINE_2048);
-    let mut modulator = NaiveTableOsc::new(&SINE_2048);
-    let mut sine_osc = NaiveTableOsc::new(&SINE_2048);
-    let mut disto_mod = NaiveTableOsc::new(&TRIANGLE_2);
-    let mut output = TanHWaveshaper::new();
-
-    let mut state = [0.0;5];
+    let mut signal_chain = SignalChain::new();
 
     let pa = pa::PortAudio::new()?;
     let settings =
@@ -43,14 +67,7 @@ fn run() -> Result<(), pa::Error> {
     let callback = move |pa::OutputStreamCallbackArgs { buffer, frames, .. }| {
         let mut idx = 0;
         for _ in 0..frames {
-            let samp = state[4];
-
-            state[0] = modmod.step_and_sample((0.3, 300.0, 660.0));
-            state[1] = modulator.step_and_sample((state[0], 220.0, 440.0));
-            state[2] = sine_osc.step_and_sample((state[1], 1.0, 0.0));
-            state[3] = disto_mod.step_and_sample((2.3, 3.0, 3.2));
-            state[4] = output.step_and_sample((state[2] + 0.2 * state[4], state[3]));
-
+            let samp = signal_chain.next();
             buffer[idx] = samp;
             buffer[idx + 1] = samp;
             idx += 2;
