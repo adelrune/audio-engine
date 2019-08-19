@@ -1,5 +1,5 @@
 [package]
-name = "tests"
+name = "signal-macro"
 version = "0.1.0"
 authors = ["Guillaume Riou <guiloua2@hotmail.com>"]
 edition = "2018"
@@ -7,6 +7,13 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-portaudio = "0.7.0"
-audio-engine = { path = "../audio-engine" }
-signal-macro = { path = "../signal-macro" }
+proc-quote = "0.2.2"
+proc-macro2 = "0.4"
+syn = { version = "0.15.7", features = ["full", "fold", "parsing"] }
+
+[lib]
+proc-macro = true
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
