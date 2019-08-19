@@ -2,7 +2,7 @@
 
 
 signal_chain!{
-    my_signal_chain (
+    MySignalChain (
 
         modulator: Naivetableosc(&TRIANGLE_2),
         generator: Naivetableosc(&SINE_2048),
