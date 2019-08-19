@@ -24,8 +24,9 @@ struct Equation {
 impl Equation {
     fn get_tokens_terminal(&self, index: i32, audio_objects_mapping: &Vec<String>) -> __rt::TokenStream {
         let toks = self.head.get_tokens(index, audio_objects_mapping);
+        let idx_val = index as usize;
         let tokens = quote! {
-            self.output_states[#index] = #toks;
+            self.output_states[#idx_val] = #toks;
         };
         tokens
     }
@@ -72,9 +73,9 @@ impl OperandNode {
         let tokens;
         if self.content.0.is_some() {
             // literal int (are tranformed to floats)
-            let cont = self.content.0.as_ref().unwrap();
+            let cont = self.content.0.as_ref().unwrap().value() as f32;
             tokens = quote! {
-                #cont.0
+                #cont
             };
 
         } else if self.content.1.is_some() {
@@ -89,9 +90,10 @@ impl OperandNode {
             // finds the index of the call for the object
             let idx = audio_objects_mapping.iter().position(|x| x == &self.content.2.as_ref().unwrap().to_string());
             if idx.is_some() {
+                let idx_val = idx.unwrap() as usize;
                 // if we have the audio object, use its reference index
                 tokens =  quote! {
-                    self.output_states[#idx]
+                    self.output_states[#idx_val]
                 };
             } else {
                 // if we don't, assume its a constant declared somewhere and let the user deal with it
@@ -364,7 +366,7 @@ pub fn signal_chain(input: TokenStream) -> TokenStream {
     }
 
     let mut audio_objects_mapping = Vec::new();
-    let num_states = exprs.iter().count() as i32;
+    let num_states = exprs.iter().count();
     let end = num_states - 1;
     exprs.iter().for_each(|expr| expr.build_audio_object_mapping(&audio_objects_names, &mut audio_objects_mapping));
     let expr_tokens = exprs.iter().enumerate().map(|(idx, expr)| expr.get_tokens_terminal(idx as i32, &audio_objects_mapping));
@@ -383,7 +385,7 @@ pub fn signal_chain(input: TokenStream) -> TokenStream {
             }
             pub fn next(&mut self) -> f32 {
                 #(#expr_tokens)*
-                self.output_state[#end]
+                self.output_states[#end]
             }
         }
     };
