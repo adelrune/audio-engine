@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 portaudio = "0.7.0"
 audio-engine = { path = "../audio-engine" }
+signal-macro = { path = "../signal-macro" }

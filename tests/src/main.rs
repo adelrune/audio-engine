@@ -1,5 +1,5 @@
 extern crate portaudio;
-
+#[macro_use] extern crate signal_macro;
 use portaudio as pa;
 use audio_engine::audio_objects::{
     NaiveTableOsc,
@@ -20,37 +20,22 @@ fn main() {
     }
 }
 
-struct SignalChain {
-    modmod: NaiveTableOsc,
-    modulator: NaiveTableOsc,
-    sine_osc: NaiveTableOsc,
-    disto_mod: NaiveTableOsc,
-    output: TanHWaveshaper,
-    output_states: [f32;5]
-}
-
-impl SignalChain {
-    pub fn new() -> Self {
-        SignalChain {
-            modmod:NaiveTableOsc::new(&SINE_2048),
-            modulator:NaiveTableOsc::new(&SINE_2048),
-            sine_osc:NaiveTableOsc::new(&SINE_2048),
-            disto_mod:NaiveTableOsc::new(&TRIANGLE_2),
-            output:TanHWaveshaper::new(),
-            output_states: [0.0;5],
-        }
-    }
-
-    fn next(&mut self) -> f32 {
-        self.output_states[0] = self.modmod.next(0.3, 300.0, 660.0);
-        self.output_states[1] = self.modulator.next(self.output_states[0], 220.0, 440.0);
-        self.output_states[2] = self.sine_osc.next(self.output_states[1], 1.0, 0.0);
-        self.output_states[3] = self.disto_mod.next(2.3, 3.0, 3.2);
-        self.output_states[4] = self.output.next(self.output_states[2] + 0.2 * self.output_states[4], self.output_states[3]);
-        self.output_states[4]
+signal_chain!{
+    SignalChain (
+        modmod: NaiveTableOsc(&SINE_2048),
+        modulator: NaiveTableOsc(&SINE_2048),
+        sine_osc: NaiveTableOsc(&SINE_2048),
+        disto_mod:NaiveTableOsc(&TRIANGLE_2),
+        output: TanHWaveshaper()
+    )
+    {
+        modmod(0.3, 300, 660);
+        modulator(modmod, 220, 440);
+        sine_osc(modulator, 1.0, 0);
+        disto_mod(2.3, 3, 3.2);
+        output(sine_osc + 0.2 * output, disto_mod);
     }
 }
-
 
 fn run() -> Result<(), pa::Error> {
     println!(
