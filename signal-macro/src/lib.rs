@@ -2,13 +2,11 @@ extern crate proc_macro;
 extern crate proc_quote;
 use self::proc_macro::TokenStream;
 
-use proc_quote::{quote, quote_spanned, ToTokens, TokenStreamExt, __rt};
-use syn::parse::{Parser ,Parse, ParseStream, Result, };
-use syn::spanned::Spanned;
+use proc_quote::{quote, __rt};
+use syn::parse::{Parse, ParseStream, Result, };
 use syn::token;
 use syn::punctuated::Punctuated;
-use syn::{ExprCall, ExprParen, parenthesized, braced, parse_macro_input, Expr, Ident, Token, Type, Visibility, BinOp, LitFloat, LitInt };
-use std::vec;
+use syn::{ExprCall, parenthesized, braced, parse_macro_input, Ident, Token, BinOp, LitFloat, LitInt };
 use std::collections::HashSet;
 
 struct Equation {
@@ -22,8 +20,8 @@ struct Equation {
 // self.output_states[4] = self.output.next(self.output_states[2] + 0.2 * self.output_states[4], self.output_states[3]);
 
 impl Equation {
-    fn get_tokens_terminal(&self, index: i32, audio_objects_mapping: &Vec<String>) -> __rt::TokenStream {
-        let toks = self.head.get_tokens(index, audio_objects_mapping);
+    fn get_tokens_terminal(&self, index: i32, audio_objects_mapping: &Vec<String>, audio_objects_names: &HashSet<String>) -> __rt::TokenStream {
+        let toks = self.head.get_tokens(index, audio_objects_mapping, audio_objects_names);
         let idx_val = index as usize;
         let tokens = quote! {
             self.output_states[#idx_val] = #toks;
@@ -31,8 +29,8 @@ impl Equation {
         tokens
     }
 
-    fn get_tokens(&self, index: i32, audio_objects_mapping: &Vec<String>) -> __rt::TokenStream {
-        self.head.get_tokens(index, audio_objects_mapping)
+    fn get_tokens(&self, index: i32, audio_objects_mapping: &Vec<String>, audio_objects_names: &HashSet<String>) -> __rt::TokenStream {
+        self.head.get_tokens(index, audio_objects_mapping, audio_objects_names)
     }
 
     fn build_audio_object_mapping(&self, audio_objects_names: &HashSet<String>, audio_objects_mapping: &mut Vec<String>) {
@@ -69,7 +67,7 @@ impl OperandNode {
         }
     }
 
-    fn get_tokens(&self, index: i32, audio_objects_mapping: &Vec<String>) -> __rt::TokenStream {
+    fn get_tokens(&self, index: i32, audio_objects_mapping: &Vec<String>, audio_objects_names: &HashSet<String>) -> __rt::TokenStream {
         let tokens;
         if self.content.0.is_some() {
             // literal int (are tranformed to floats)
@@ -105,8 +103,8 @@ impl OperandNode {
 
         } else if self.content.3.is_some() {
             let ident = &self.content.3.as_ref().unwrap().0;
-            let eq_tokens = self.content.3.as_ref().unwrap().1.iter().map(|x| x.get_tokens(index, audio_objects_mapping));
-            let has_name = audio_objects_mapping.iter().position(|x| x == &ident.to_string()).is_some();
+            let eq_tokens = self.content.3.as_ref().unwrap().1.iter().map(|x| x.get_tokens(index, audio_objects_mapping, audio_objects_names));
+            let has_name = audio_objects_names.contains(&ident.to_string());
             if !has_name {
                 // if we don't have the thing, assume its an external function and let the user deal with it.
                 tokens = quote! {
@@ -122,11 +120,11 @@ impl OperandNode {
 
         } else {
             // another Equation, just return its tokens
-            tokens = self.content.4.as_ref().unwrap().get_tokens(index, audio_objects_mapping)
+            tokens = self.content.4.as_ref().unwrap().get_tokens(index, audio_objects_mapping, audio_objects_names)
         }
         let toks;
         if self.next.is_some() {
-            let next_toks = self.next.as_ref().unwrap().get_tokens(index, audio_objects_mapping);
+            let next_toks = self.next.as_ref().unwrap().get_tokens(index, audio_objects_mapping, audio_objects_names);
             toks = quote! {
                 #tokens #next_toks
             };
@@ -141,7 +139,7 @@ impl OperandNode {
 
 impl Parse for OperandNode {
     fn parse(input: ParseStream) -> Result<Self> {
-        let mut content:(Option<LitInt>, Option<LitFloat>, Option<Ident>, Option<(Ident, Punctuated<Equation, Token![,]>)>, Option<Equation>);
+        let content:(Option<LitInt>, Option<LitFloat>, Option<Ident>, Option<(Ident, Punctuated<Equation, Token![,]>)>, Option<Equation>);
         // this is really ugly code.
         if input.peek(LitInt) {
             content = (Some(input.parse()?), None, None, None, None);
@@ -152,11 +150,11 @@ impl Parse for OperandNode {
             content = (None, None, Some(input.parse()?), None, None);
         // case for ExprCall
         } else if input.peek(Ident) && input.peek2(token::Paren){
-            let paramParser = Equation::parse;
+            let param_parser = Equation::parse;
             let part_1: Ident = input.parse()?;
             let c;
             parenthesized!(c in input);
-            let part_2: Punctuated<Equation, Token![,]> = c.parse_terminated(paramParser)?;
+            let part_2: Punctuated<Equation, Token![,]> = c.parse_terminated(param_parser)?;
             content = (None, None, None, Some((part_1, part_2)), None);
         } else if input.peek(token::Paren){
             content = (None, None, None, None, Some(input.parse()?));
@@ -188,11 +186,11 @@ impl OperationNode {
         }
     }
 
-    fn get_tokens(&self, index: i32, audio_objects_mapping: &Vec<String>) -> __rt::TokenStream {
+    fn get_tokens(&self, index: i32, audio_objects_mapping: &Vec<String>, audio_objects_names: &HashSet<String>) -> __rt::TokenStream {
         let toks;
         let cont = self.content;
         if self.next.is_some() {
-            let next_toks = self.next.as_ref().unwrap().get_tokens(index, audio_objects_mapping);
+            let next_toks = self.next.as_ref().unwrap().get_tokens(index, audio_objects_mapping, audio_objects_names);
             toks = quote! {
                 #cont #next_toks
             }
@@ -369,7 +367,7 @@ pub fn signal_chain(input: TokenStream) -> TokenStream {
     let num_states = exprs.iter().count();
     let end = num_states - 1;
     exprs.iter().for_each(|expr| expr.build_audio_object_mapping(&audio_objects_names, &mut audio_objects_mapping));
-    let expr_tokens = exprs.iter().enumerate().map(|(idx, expr)| expr.get_tokens_terminal(idx as i32, &audio_objects_mapping));
+    let expr_tokens = exprs.iter().enumerate().map(|(idx, expr)| expr.get_tokens_terminal(idx as i32, &audio_objects_mapping, &audio_objects_names));
     let expanded = quote! {
         struct #signal_chain_name {
             #(#audio_objects_declarations)*
