@@ -1,11 +1,6 @@
-#![no_std]
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
-
+#![cfg_attr(not(feature = "more-stuff"), no_std)]
+mod utils;
 pub mod audio_objects;
 pub mod tables;
+#[cfg(feature = "more-stuff")]
+pub mod more_stuff;

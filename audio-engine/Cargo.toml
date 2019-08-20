@@ -4,5 +4,10 @@ version = "0.1.0"
 authors = ["Guillaume Riou <riou.guillaume@hotmail.com>"]
 edition = "2018"
 
+[features]
+default = []
+more-stuff = ["hound"]
+
 [dependencies]
 libm = "0.1.4"
+hound = { version = "3.4.0", optional = true }
