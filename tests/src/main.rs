@@ -5,9 +5,10 @@ use audio_engine::audio_objects::{
     NaiveTableOsc,
     TanHWaveshaper
 };
+use audio_engine::more_stuff::FileReader;
 use audio_engine::tables::{SINE_2048, TRIANGLE_2};
 const CHANNELS: i32 = 2;
-const NUM_SECONDS: i32 = 5;
+const NUM_SECONDS: i32 = 6;
 const SAMPLE_RATE: f64 = 44_100.0;
 const FRAMES_PER_BUFFER: u32 = 64;
 
@@ -20,20 +21,23 @@ fn main() {
     }
 }
 
-signal_chain!{
+signal_chain! {
     SignalChain (
         modmod: NaiveTableOsc(&SINE_2048),
         modulator: NaiveTableOsc(&SINE_2048),
         sine_osc: NaiveTableOsc(&SINE_2048),
-        disto_mod:NaiveTableOsc(&TRIANGLE_2),
-        output: TanHWaveshaper()
+        disto_mod: NaiveTableOsc(&TRIANGLE_2),
+        output: TanHWaveshaper(),
+        reader_mod: NaiveTableOsc(&TRIANGLE_2),
+        reader: FileReader("../../test_sounds/guitest.wav"),
     )
     {
         modmod(0.3, 300, 660);
         modulator(modmod, 220, 440);
         sine_osc(modulator, 1.0, 0);
         disto_mod(2.3, 3, 3.2);
-        output(sine_osc + 0.2 * output, disto_mod);
+        output(sine_osc + 0.2 * output, disto_mod) * 0.2 + output(reader(reader_mod(2.6, 0.026, 1), 20) + 0.2 * output, 5) * 0.5;
+
     }
 }
 
